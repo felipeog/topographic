@@ -12,6 +12,7 @@ const CELL_DISTANCE = 8;
 
 // ========== elements
 
+// prettier-ignore
 const elements = {
   root: document.querySelector("#root"),
 
@@ -21,30 +22,20 @@ const elements = {
   svgWrapper: document.querySelector("#svg-wrapper"),
   svg: document.querySelector("#svg"),
 
-  noiseMatrixGroup: document.querySelector("#noise-matrix-group"),
-  horizontalChangesMatrixGroup: document.querySelector(
-    "#horizontal-changes-matrix-group",
-  ),
-  verticalChangesMatrixGroup: document.querySelector(
-    "#vertical-changes-matrix-group",
-  ),
-  linesMatrixGroup: document.querySelector("#lines-matrix-group"),
-  individualLinesGroup: document.querySelector("#individual-lines-group"),
-  inflectionsGroup: document.querySelector("#inflections-group"),
-  curvesGroup: document.querySelector("#curves-group"),
-  linesGroup: document.querySelector("#lines-group"),
+  "noise-matrix-group": document.querySelector("#noise-matrix-group"),
+  "horizontal-changes-matrix-group": document.querySelector("#horizontal-changes-matrix-group"),
+  "vertical-changes-matrix-group": document.querySelector("#vertical-changes-matrix-group"),
+  "lines-matrix-group": document.querySelector("#lines-matrix-group"),
+  "individual-lines-group": document.querySelector("#individual-lines-group"),
+  "inflections-group": document.querySelector("#inflections-group"),
+  "curves-group": document.querySelector("#curves-group"),
+  "lines-group": document.querySelector("#lines-group"),
 
   "noise-matrix-progress": document.querySelector("#noise-matrix-progress"),
-  "horizontal-changes-matrix-progress": document.querySelector(
-    "#horizontal-changes-matrix-progress",
-  ),
-  "vertical-changes-matrix-progress": document.querySelector(
-    "#vertical-changes-matrix-progress",
-  ),
+  "horizontal-changes-matrix-progress": document.querySelector("#horizontal-changes-matrix-progress"),
+  "vertical-changes-matrix-progress": document.querySelector("#vertical-changes-matrix-progress"),
   "lines-matrix-progress": document.querySelector("#lines-matrix-progress"),
-  "individual-lines-progress": document.querySelector(
-    "#individual-lines-progress",
-  ),
+  "individual-lines-progress": document.querySelector("#individual-lines-progress"),
   "inflections-progress": document.querySelector("#inflections-progress"),
   "curves-progress": document.querySelector("#curves-progress"),
   "lines-progress": document.querySelector("#lines-progress"),
@@ -234,45 +225,40 @@ function renderLines(lines, group) {
   group.append(fragment);
 }
 
+// prettier-ignore
 async function render(payload) {
   let currentStep = 0;
   const totalSteps = 8;
 
-  renderNoiseMatrix(payload.noiseMatrix, elements.noiseMatrixGroup);
+  renderNoiseMatrix(payload.noiseMatrix, elements["noise-matrix-group"]);
   elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
   await delay();
 
-  renderHorizontalChangesMatrix(
-    payload.horizontalChangesMatrix,
-    elements.horizontalChangesMatrixGroup,
-  );
+  renderHorizontalChangesMatrix(payload.horizontalChangesMatrix, elements["horizontal-changes-matrix-group"]);
   elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
   await delay();
 
-  renderVerticalChangesMatrix(
-    payload.verticalChangesMatrix,
-    elements.verticalChangesMatrixGroup,
-  );
+  renderVerticalChangesMatrix(payload.verticalChangesMatrix, elements["vertical-changes-matrix-group"]);
   elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
   await delay();
 
-  renderLinesMatrix(payload.linesMatrix, elements.linesMatrixGroup);
+  renderLinesMatrix(payload.linesMatrix, elements["lines-matrix-group"]);
   elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
   await delay();
 
-  renderIndividualLines(payload.individualLines, elements.individualLinesGroup);
+  renderIndividualLines(payload.individualLines, elements["individual-lines-group"]);
   elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
   await delay();
 
-  renderInflections(payload.inflections, elements.inflectionsGroup);
+  renderInflections(payload.inflections, elements["inflections-group"]);
   elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
   await delay();
 
-  renderCurves(payload.curves, elements.curvesGroup);
+  renderCurves(payload.curves, elements["curves-group"]);
   elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
   await delay();
 
-  renderLines(payload.lines, elements.linesGroup);
+  renderLines(payload.lines, elements["lines-group"]);
   elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
 }
 
@@ -301,7 +287,7 @@ function logger(...args) {
 // ========== events
 
 function handleCheckboxChange(event) {
-  const group = document.querySelector(`#${event.target.dataset.groupId}`);
+  const group = elements[event.target.dataset.groupId];
 
   if (!group) return;
   if (!event.target.checked) group.classList.add("hidden");
@@ -348,9 +334,11 @@ worker.addEventListener("message", (event) => {
 
   switch (type) {
     case "progress": {
-      if (!elements[payload.progress]) return;
+      const progress = elements[payload.progress];
 
-      elements[payload.progress].value = payload.value;
+      if (!progress) return;
+
+      progress.value = payload.value;
 
       break;
     }
