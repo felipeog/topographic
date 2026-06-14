@@ -1,0 +1,93 @@
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link rel="stylesheet" href="index.css">
+
+    <title>topographic</title>
+  </head>
+
+  <body>
+    <main id="root">
+      <div id="form-wrapper">
+        <label>
+          <input type="checkbox" data-group-id="noise-matrix-group" checked />
+          noise-matrix-group
+        </label>
+        <br />
+
+        <label>
+          <input
+            type="checkbox"
+            data-group-id="horizontal-changes-matrix-group"
+            checked
+          />
+          horizontal-changes-matrix-group
+        </label>
+        <br />
+
+        <label>
+          <input
+            type="checkbox"
+            data-group-id="vertical-changes-matrix-group"
+            checked
+          />
+          vertical-changes-matrix-group
+        </label>
+        <br />
+
+        <label>
+          <input type="checkbox" data-group-id="lines-matrix-group" checked />
+          lines-matrix-group
+        </label>
+        <br />
+
+        <label>
+          <input
+            type="checkbox"
+            data-group-id="individual-lines-group"
+            checked
+          />
+          individual-lines-group
+        </label>
+        <br />
+
+        <label>
+          <input type="checkbox" data-group-id="inflections-group" checked />
+          inflections-group
+        </label>
+        <br />
+
+        <label>
+          <input type="checkbox" data-group-id="curves-group" checked />
+          curves-group
+        </label>
+        <br />
+
+        <label>
+          <input type="checkbox" data-group-id="lines-group" checked />
+          lines-group
+        </label>
+        <br />
+      </div>
+
+      <div id="svg-wrapper">
+        <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+          <g id="noise-matrix-group"></g>
+          <g id="horizontal-changes-matrix-group"></g>
+          <g id="vertical-changes-matrix-group"></g>
+          <g id="lines-matrix-group"></g>
+          <g id="individual-lines-group"></g>
+          <g id="inflections-group"></g>
+          <g id="curves-group"></g>
+          <g id="lines-group"></g>
+        </svg>
+      </div>
+    </main>
+
+    <script type="module" src="index.js"></script>
+  </body>
+</html>
