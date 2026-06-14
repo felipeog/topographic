@@ -11,18 +11,33 @@ import Alea from "https://cdn.jsdelivr.net/npm/alea@1.0.1/+esm";
 // constants
 // =============================================================================
 
+const DEBUG = false;
 const SEED = "topographic-000";
 
 const WIDTH = 210;
 const HEIGHT = 297;
 
-const DEFAULT_MATRIX_STEP = 1;
-const DEFAULT_NOISE_STEP = 0.01;
-const DEFAULT_CELL_DISTANCE = 8;
-
 const MATRIX_STEP = 1;
 const NOISE_STEP = 0.01;
 const CELL_DISTANCE = 8;
+
+worker.postMessage({
+  type: "setup",
+  payload: {
+    DEBUG,
+    SEED,
+    WIDTH,
+    HEIGHT,
+    MATRIX_STEP,
+    NOISE_STEP,
+    CELL_DISTANCE,
+  },
+});
+
+worker.postMessage({
+  type: "start",
+  payload: {},
+});
 
 // =============================================================================
 // objects
@@ -43,6 +58,7 @@ const elements = {
 
   svgWrapper: document.querySelector("#svg-wrapper"),
   svg: document.querySelector("#svg"),
+
   noiseMatrixGroup: document.querySelector("#noise-matrix-group"),
   horizontalChangesMatrixGroup: document.querySelector(
     "#horizontal-changes-matrix-group",
@@ -55,6 +71,21 @@ const elements = {
   inflectionsGroup: document.querySelector("#inflections-group"),
   curvesGroup: document.querySelector("#curves-group"),
   linesGroup: document.querySelector("#lines-group"),
+
+  "noise-matrix-progress": document.querySelector("#noise-matrix-progress"),
+  "horizontal-changes-matrix-progress": document.querySelector(
+    "#horizontal-changes-matrix-progress",
+  ),
+  "vertical-changes-matrix-progress": document.querySelector(
+    "#vertical-changes-matrix-progress",
+  ),
+  "lines-matrix-progress": document.querySelector("#lines-matrix-progress"),
+  "individual-lines-progress": document.querySelector(
+    "#individual-lines-progress",
+  ),
+  "inflections-progress": document.querySelector("#inflections-progress"),
+  "curves-progress": document.querySelector("#curves-progress"),
+  "drawing-progress": document.querySelector("#drawing-progress"),
 };
 
 elements.svg.setAttribute("width", `${WIDTH}mm`);
@@ -62,50 +93,12 @@ elements.svg.setAttribute("height", `${HEIGHT}mm`);
 elements.svg.setAttribute("viewBox", `0 0 ${WIDTH} ${HEIGHT}`);
 
 // =============================================================================
-// helpers
+// render
 // =============================================================================
 
-function createSvgElement(tag, properties = {}) {
-  const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
-
-  Object.entries(properties).forEach(([key, value]) =>
-    element.setAttribute(key, value),
-  );
-
-  return element;
-}
-
-function getNoiseMatrix() {
-  const matrix = [];
-
-  let rowIndex = 0;
-  let xOffset = 0;
-  let yOffset = 0;
-
-  for (let row = 0; row <= HEIGHT; row += MATRIX_STEP) {
-    rowIndex = matrix.length;
-    xOffset = 0;
-    matrix.push([]);
-
-    for (let col = 0; col <= WIDTH; col += MATRIX_STEP) {
-      const noise = (noise2D(xOffset, yOffset) + 1) / 2; // (-1, 1) to (0, 1)
-      const level = Number(noise.toFixed(1)); // one decimal
-
-      matrix[rowIndex].push({
-        row,
-        col,
-        level,
-      });
-      xOffset += NOISE_STEP;
-    }
-
-    yOffset += NOISE_STEP;
-  }
-
-  return matrix;
-}
-
 function renderNoiseMatrix(matrix, group) {
+  const fragment = new DocumentFragment();
+
   for (let row = 0; row < matrix.length; row++) {
     for (let col = 0; col < matrix[0].length; col++) {
       const cell = matrix[row][col];
@@ -118,40 +111,16 @@ function renderNoiseMatrix(matrix, group) {
         fill: `rgb(0 0 0 / ${cell.level})`,
       });
 
-      group.append(circle);
-    }
-  }
-}
-
-function getHorizontalChangesMatrix(matrix) {
-  const changes = [];
-
-  for (let row = 0; row < matrix.length; row++) {
-    changes[row] = [];
-
-    for (let col = 0; col < matrix[0].length; col++) {
-      const prevCell = matrix?.[row]?.[col - 1] ?? matrix[row][0];
-      const currCell = matrix[row][col];
-
-      if (prevCell.level === currCell.level) {
-        changes[row][col] = { ...currCell, change: false };
-      }
-
-      if (prevCell.level < currCell.level) {
-        changes[row][col] = { ...currCell, change: true };
-      }
-
-      if (prevCell.level > currCell.level) {
-        changes[row][col - 1] = { ...changes[row][col - 1], change: true };
-        changes[row][col] = { ...currCell, change: false };
-      }
+      fragment.append(circle);
     }
   }
 
-  return changes;
+  group.append(fragment);
 }
 
 function renderHorizontalChangesMatrix(matrix, group) {
+  const fragment = new DocumentFragment();
+
   for (let row = 0; row < matrix.length; row++) {
     for (let col = 0; col < matrix[0].length; col++) {
       const cell = matrix[row][col];
@@ -167,40 +136,16 @@ function renderHorizontalChangesMatrix(matrix, group) {
         fill: `rgb(255 0 0 / 1)`,
       });
 
-      group.append(circle);
-    }
-  }
-}
-
-function getVerticalChangesMatrix(matrix) {
-  const changes = [];
-
-  for (let col = 0; col < matrix[0].length; col++) {
-    for (let row = 0; row < matrix.length; row++) {
-      if (!changes[row]) changes[row] = [];
-
-      const prevCell = matrix?.[row - 1]?.[col] ?? matrix[0][col];
-      const currCell = matrix[row][col];
-
-      if (prevCell.level === currCell.level) {
-        changes[row][col] = { ...currCell, change: false };
-      }
-
-      if (prevCell.level < currCell.level) {
-        changes[row][col] = { ...currCell, change: true };
-      }
-
-      if (prevCell.level > currCell.level) {
-        changes[row - 1][col] = { ...changes[row - 1][col], change: true };
-        changes[row][col] = { ...currCell, change: false };
-      }
+      fragment.append(circle);
     }
   }
 
-  return changes;
+  group.append(fragment);
 }
 
 function renderVerticalChangesMatrix(matrix, group) {
+  const fragment = new DocumentFragment();
+
   for (let row = 0; row < matrix.length; row++) {
     for (let col = 0; col < matrix[0].length; col++) {
       const cell = matrix[row][col];
@@ -216,64 +161,16 @@ function renderVerticalChangesMatrix(matrix, group) {
         fill: `rgb(0 255 0 / 1)`,
       });
 
-      group.append(circle);
-    }
-  }
-}
-
-function getLinesMatrix(matrix) {
-  const lines = [];
-  const horizontal = getHorizontalChangesMatrix(matrix);
-  const vertical = getVerticalChangesMatrix(matrix);
-
-  // merge horizontal and vertical
-  for (let row = 0; row < matrix.length; row++) {
-    lines[row] = [];
-
-    for (let col = 0; col < matrix[0].length; col++) {
-      lines[row][col] = {
-        ...matrix[row][col],
-        active: horizontal[row][col].change || vertical[row][col].change,
-      };
+      fragment.append(circle);
     }
   }
 
-  // remove corners
-  for (let row = 0; row < matrix.length; row++) {
-    for (let col = 0; col < matrix[0].length; col++) {
-      if (lines[row][col].active) continue;
-
-      const topLeft = lines?.[row - 1]?.[col - 1]?.active;
-      const top = lines?.[row - 1]?.[col]?.active;
-      const topRight = lines?.[row - 1]?.[col + 1]?.active;
-      const right = lines?.[row]?.[col + 1]?.active;
-      const bottomRight = lines?.[row + 1]?.[col + 1]?.active;
-      const bottom = lines?.[row + 1]?.[col]?.active;
-      const bottomLeft = lines?.[row + 1]?.[col - 1]?.active;
-      const left = lines?.[row]?.[col - 1]?.active;
-
-      if (left && topLeft && top) {
-        lines[row - 1][col - 1].active = false;
-      }
-
-      if (top && topRight && right) {
-        lines[row - 1][col + 1].active = false;
-      }
-
-      if (right && bottomRight && bottom) {
-        lines[row + 1][col + 1].active = false;
-      }
-
-      if (bottom && bottomLeft && left) {
-        lines[row + 1][col - 1].active = false;
-      }
-    }
-  }
-
-  return lines;
+  group.append(fragment);
 }
 
 function renderLinesMatrix(matrix, group) {
+  const fragment = new DocumentFragment();
+
   for (let row = 0; row < matrix.length; row++) {
     for (let col = 0; col < matrix[0].length; col++) {
       const cell = matrix[row][col];
@@ -289,85 +186,16 @@ function renderLinesMatrix(matrix, group) {
         fill: `rgb(0 0 255 / 1)`,
       });
 
-      group.append(circle);
-    }
-  }
-}
-
-function getIndividualLines(matrix) {
-  const matrixClone = structuredClone(matrix);
-  const lines = [];
-
-  // border lines first
-  for (let row = 0; row < matrixClone.length; row++) {
-    for (let col = 0; col < matrixClone[0].length; col++) {
-      const isBorder =
-        row === 0 ||
-        row === matrixClone.length - 1 ||
-        col === 0 ||
-        col === matrixClone[0].length - 1;
-
-      if (!isBorder || !matrixClone[row][col].active) continue;
-
-      const line = [];
-
-      let cellRow = row;
-      let cellCol = col;
-
-      while (true) {
-        line.push({
-          row: matrixClone[cellRow][cellCol].row,
-          col: matrixClone[cellRow][cellCol].col,
-        });
-
-        matrixClone[cellRow][cellCol].active = false;
-
-        const neighbours = getMatrixNeighbours(matrixClone, cellRow, cellCol);
-
-        if (neighbours.length <= 0) break;
-
-        cellRow = neighbours[0].row;
-        cellCol = neighbours[0].col;
-      }
-
-      lines.push(line);
+      fragment.append(circle);
     }
   }
 
-  // other lines second
-  for (let row = 0; row < matrixClone.length; row++) {
-    for (let col = 0; col < matrixClone[0].length; col++) {
-      if (!matrixClone[row][col].active) continue;
-
-      let cellRow = row;
-      let cellCol = col;
-
-      const line = [];
-
-      while (true) {
-        line.push({
-          row: matrixClone[cellRow][cellCol].row,
-          col: matrixClone[cellRow][cellCol].col,
-        });
-
-        matrixClone[cellRow][cellCol].active = false;
-
-        const neighbours = getMatrixNeighbours(matrixClone, cellRow, cellCol);
-
-        if (neighbours.length <= 0) break;
-
-        cellRow = neighbours[0].row;
-        cellCol = neighbours[0].col;
-      }
-
-      lines.push(line);
-    }
-  }
-
-  return lines;
+  group.append(fragment);
 }
 
 function renderIndividualLines(lines, group) {
+  const fragment = new DocumentFragment();
+
   for (const line of lines) {
     for (const cell of line) {
       const circle = createSvgElement("circle", {
@@ -379,46 +207,16 @@ function renderIndividualLines(lines, group) {
         fill: `rgb(255 255 0 / 1)`,
       });
 
-      group.append(circle);
+      fragment.append(circle);
     }
   }
-}
 
-function getInflections(lines) {
-  const inflections = [];
-
-  for (const line of lines) {
-    const inflection = line.reduce((a, c, i, o) => {
-      if (i % CELL_DISTANCE === 0) {
-        return [...a, c];
-      }
-
-      return a;
-    }, []);
-
-    if (!inflection.length) {
-      inflections.push(line[0], line[line.length - 1]);
-
-      continue;
-    }
-
-    if (!areCellsEqual(inflection[0], line[0])) {
-      inflection.unshift(line[0]);
-    }
-
-    if (
-      !areCellsEqual(inflection[inflection.length - 1], line[line.length - 1])
-    ) {
-      inflection.push(line[line.length - 1]);
-    }
-
-    inflections.push(inflection);
-  }
-
-  return inflections;
+  group.append(fragment);
 }
 
 function renderInflections(inflections, group) {
+  const fragment = new DocumentFragment();
+
   for (const inflection of inflections) {
     for (const cell of inflection) {
       const circle = createSvgElement("circle", {
@@ -430,92 +228,16 @@ function renderInflections(inflections, group) {
         fill: `rgb(0 255 255 / 1)`,
       });
 
-      group.append(circle);
+      fragment.append(circle);
     }
   }
-}
 
-function getCurves(inflections) {
-  const curves = [];
-
-  for (const inflection of inflections) {
-    const isContinuous = areCellsNeighbours(
-      inflection[0],
-      inflection[inflection.length - 1],
-    );
-
-    let count = 0;
-
-    const curve = inflection.reduce((a, c, i, o) => {
-      if (i < 1) return a;
-
-      const prev = o[i - 1];
-      const next = o[i + 1];
-
-      const isPrevN = areCellsNeighbours(prev, c);
-      const isNextN = next ? areCellsNeighbours(next, c) : false;
-      const hasNeighbours = isNextN || isNextN;
-
-      if (isPrevN) {
-        count += count > 0 ? 1 : 2;
-
-        return a;
-      }
-
-      if (count > 0) {
-        const b = o[i - Math.floor(count / 2) - 1];
-
-        count = 0;
-
-        if (!isPrevN && !isNextN) return [...a, b, o[i]];
-
-        return [...a, b];
-      }
-
-      if (!hasNeighbours) {
-        return [...a, o[i]];
-      }
-
-      return a;
-    }, []);
-
-    if (count > 0) {
-      const b = inflection[inflection.length - Math.floor(count / 2)];
-
-      curve.push(b);
-    }
-
-    if (!areCellsEqual(inflection[0], curve[0])) {
-      curve.unshift(inflection[0]);
-    }
-
-    if (
-      !areCellsEqual(inflection[inflection.length - 1], curve[curve.length - 1])
-    ) {
-      curve.push(inflection[inflection.length - 1]);
-    }
-
-    if (isContinuous) {
-      curve.push(inflection[0]);
-    }
-
-    if (areCellsNeighbours(curve[0], curve[1])) {
-      curve.splice(1, 1);
-    }
-
-    if (areCellsNeighbours(curve[curve.length - 1], curve[curve.length - 2])) {
-      curve.splice(curve.length - 2, 1);
-    }
-
-    if ((isContinuous && curve.length < 4) || curve.length < 2) continue;
-
-    curves.push(curve);
-  }
-
-  return curves;
+  group.append(fragment);
 }
 
 function renderCurves(curves, group) {
+  const fragment = new DocumentFragment();
+
   for (const curve of curves) {
     for (const cell of curve) {
       const circle = createSvgElement("circle", {
@@ -527,12 +249,15 @@ function renderCurves(curves, group) {
         fill: `rgb(0 0 0 / 0.5)`,
       });
 
-      group.append(circle);
+      fragment.append(circle);
     }
   }
+
+  group.append(fragment);
 }
 
 function renderLines(curves, group) {
+  const fragment = new DocumentFragment();
   const handleDistance = 1 / 3;
 
   for (const curve of curves) {
@@ -594,46 +319,46 @@ function renderLines(curves, group) {
         prevY1 =
           Math.sin(angle + Math.PI) * (nextDistance * handleDistance) + c.row;
 
-        const line1 = createSvgElement("line", {
-          x1: c.col,
-          y1: c.row,
-          x2,
-          y2,
-          stroke: "rgb(0 0 0 / 0.4)",
-          "stroke-width": 0.25,
-          fill: "none",
-        });
-        const line2 = createSvgElement("line", {
-          x1: c.col,
-          y1: c.row,
-          x2: prevX1,
-          y2: prevY1,
-          stroke: "rgb(0 0 0 / 0.4)",
-          "stroke-width": 0.25,
-          fill: "none",
-        });
-        const from = createSvgElement("circle", {
-          cx: c.col,
-          cy: c.row,
-          r: MATRIX_STEP * (1 / 2),
-          stroke: "rgb(0 0 0 / 0.6)",
-          fill: "rgb(255 255 255 / 0.6)",
-          "stroke-width": 0.25,
-        });
-        const to1 = createSvgElement("circle", {
-          cx: x2,
-          cy: y2,
-          r: MATRIX_STEP * (1 / 2),
-          stroke: "none",
-          fill: "rgb(0 255 0 / 0.6)",
-        });
-        const to2 = createSvgElement("circle", {
-          cx: prevX1,
-          cy: prevY1,
-          r: MATRIX_STEP * (1 / 2),
-          stroke: "none",
-          fill: "rgb(0 0 255 / 0.6)",
-        });
+        // const line1 = createSvgElement("line", {
+        //   x1: c.col,
+        //   y1: c.row,
+        //   x2,
+        //   y2,
+        //   stroke: "rgb(0 0 0 / 0.4)",
+        //   "stroke-width": 0.25,
+        //   fill: "none",
+        // });
+        // const line2 = createSvgElement("line", {
+        //   x1: c.col,
+        //   y1: c.row,
+        //   x2: prevX1,
+        //   y2: prevY1,
+        //   stroke: "rgb(0 0 0 / 0.4)",
+        //   "stroke-width": 0.25,
+        //   fill: "none",
+        // });
+        // const from = createSvgElement("circle", {
+        //   cx: c.col,
+        //   cy: c.row,
+        //   r: MATRIX_STEP * (1 / 2),
+        //   stroke: "rgb(0 0 0 / 0.6)",
+        //   fill: "rgb(255 255 255 / 0.6)",
+        //   "stroke-width": 0.25,
+        // });
+        // const to1 = createSvgElement("circle", {
+        //   cx: x2,
+        //   cy: y2,
+        //   r: MATRIX_STEP * (1 / 2),
+        //   stroke: "none",
+        //   fill: "rgb(0 255 0 / 0.6)",
+        // });
+        // const to2 = createSvgElement("circle", {
+        //   cx: prevX1,
+        //   cy: prevY1,
+        //   r: MATRIX_STEP * (1 / 2),
+        //   stroke: "none",
+        //   fill: "rgb(0 0 255 / 0.6)",
+        // });
 
         // group.append(line1, line2, from, to1, to2);
       }
@@ -652,8 +377,66 @@ function renderLines(curves, group) {
       d,
     });
 
-    group.append(path);
+    fragment.append(path);
   }
+
+  group.append(fragment);
+}
+
+async function render(payload) {
+  let currentStep = 0;
+  const totalSteps = 8;
+
+  renderNoiseMatrix(payload.noiseMatrix, elements.noiseMatrixGroup);
+  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
+  await delay();
+
+  renderHorizontalChangesMatrix(
+    payload.horizontalChangesMatrix,
+    elements.horizontalChangesMatrixGroup,
+  );
+  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
+  await delay();
+
+  renderVerticalChangesMatrix(
+    payload.verticalChangesMatrix,
+    elements.verticalChangesMatrixGroup,
+  );
+  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
+  await delay();
+
+  renderLinesMatrix(payload.linesMatrix, elements.linesMatrixGroup);
+  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
+  await delay();
+
+  renderIndividualLines(payload.individualLines, elements.individualLinesGroup);
+  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
+  await delay();
+
+  renderInflections(payload.inflections, elements.inflectionsGroup);
+  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
+  await delay();
+
+  renderCurves(payload.curves, elements.curvesGroup);
+  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
+  await delay();
+
+  renderLines(payload.curves, elements.linesGroup);
+  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
+}
+
+// =============================================================================
+// helpers
+// =============================================================================
+
+function createSvgElement(tag, properties = {}) {
+  const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
+
+  Object.entries(properties).forEach(([key, value]) =>
+    element.setAttribute(key, value),
+  );
+
+  return element;
 }
 
 function areCellsNeighbours(a, b) {
@@ -764,6 +547,16 @@ function getMatrixNeighbours(matrix, row, col) {
   return neighbours;
 }
 
+function delay(ms = 200) {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
+function logger(...args) {
+  if (!DEBUG) return;
+
+  console.log(...args);
+}
+
 // =============================================================================
 // events
 // =============================================================================
@@ -780,34 +573,33 @@ elements.checkboxes.forEach((c) => {
   c.addEventListener("change", handleCheckboxChange);
 });
 
-// =============================================================================
-// main
-// =============================================================================
+worker.addEventListener("message", (event) => {
+  logger("from worker", event.data);
 
-const noiseMatrix = getNoiseMatrix();
-renderNoiseMatrix(noiseMatrix, elements.noiseMatrixGroup);
+  const type = event?.data?.type;
+  const payload = event?.data?.payload;
 
-const horizontalChangesMatrix = getHorizontalChangesMatrix(noiseMatrix);
-renderHorizontalChangesMatrix(
-  horizontalChangesMatrix,
-  elements.horizontalChangesMatrixGroup,
-);
+  if (!type || !payload) {
+    console.error("invalid message");
 
-const verticalChangesMatrix = getVerticalChangesMatrix(noiseMatrix);
-renderVerticalChangesMatrix(
-  verticalChangesMatrix,
-  elements.verticalChangesMatrixGroup,
-);
+    return;
+  }
 
-const linesMatrix = getLinesMatrix(noiseMatrix);
-renderLinesMatrix(linesMatrix, elements.linesMatrixGroup);
+  switch (type) {
+    case "progress": {
+      if (!elements[payload.progress]) return;
 
-const individualLines = getIndividualLines(linesMatrix);
-renderIndividualLines(individualLines, elements.individualLinesGroup);
+      elements[payload.progress].value = payload.value;
 
-const inflections = getInflections(individualLines);
-renderInflections(inflections, elements.inflectionsGroup);
+      break;
+    }
+  }
 
-const curves = getCurves(inflections);
-renderCurves(curves, elements.curvesGroup);
-renderLines(curves, elements.linesGroup);
+  switch (type) {
+    case "done": {
+      render(payload);
+
+      break;
+    }
+  }
+});
