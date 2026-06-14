@@ -85,6 +85,7 @@ const elements = {
   ),
   "inflections-progress": document.querySelector("#inflections-progress"),
   "curves-progress": document.querySelector("#curves-progress"),
+  "lines-progress": document.querySelector("#lines-progress"),
   "drawing-progress": document.querySelector("#drawing-progress"),
 };
 
@@ -256,125 +257,15 @@ function renderCurves(curves, group) {
   group.append(fragment);
 }
 
-function renderLines(curves, group) {
+function renderLines(lines, group) {
   const fragment = new DocumentFragment();
-  const handleDistance = 1 / 3;
 
-  for (const curve of curves) {
-    const first = curve[0];
-    const last = curve[curve.length - 1];
-    const isContinuous = areCellsEqual(first, last);
-
-    let prevX1;
-    let prevY1;
-
-    const d = curve.reduce((a, c, i, o) => {
-      const x = c.col;
-      const y = c.row;
-
-      if (i === 0) return `M ${x} ${y}`;
-
-      const isFirst = i === 1;
-      const isLast = i === o.length - 1;
-
-      let prev = o[i - 1];
-      let next = o[i + 1];
-
-      if (isContinuous && isLast) {
-        next = o[1];
-      }
-
-      if (isContinuous && isFirst) {
-        prev = o[o.length - 1];
-
-        const p = o[o.length - 2];
-        const n = o[i];
-        const cc = o[i - 1];
-
-        const angle = Math.atan2(p.row - n.row, p.col - n.col);
-        const nextDistance = Math.hypot(n.col - cc.col, n.row - cc.row);
-
-        prevX1 =
-          Math.cos(angle + Math.PI) * (nextDistance * handleDistance) + cc.col;
-        prevY1 =
-          Math.sin(angle + Math.PI) * (nextDistance * handleDistance) + cc.row;
-      }
-
-      let x1 = prevX1 ?? prev.col;
-      let y1 = prevY1 ?? prev.row;
-
-      let x2 = c.col;
-      let y2 = c.row;
-
-      if (prev && next) {
-        const angle = Math.atan2(prev.row - next.row, prev.col - next.col);
-        const distance = Math.hypot(prev.col - c.col, prev.row - c.row);
-        const nextDistance = Math.hypot(next.col - c.col, next.row - c.row);
-
-        x2 = Math.cos(angle) * (distance * handleDistance) + c.col;
-        y2 = Math.sin(angle) * (distance * handleDistance) + c.row;
-
-        prevX1 =
-          Math.cos(angle + Math.PI) * (nextDistance * handleDistance) + c.col;
-        prevY1 =
-          Math.sin(angle + Math.PI) * (nextDistance * handleDistance) + c.row;
-
-        // const line1 = createSvgElement("line", {
-        //   x1: c.col,
-        //   y1: c.row,
-        //   x2,
-        //   y2,
-        //   stroke: "rgb(0 0 0 / 0.4)",
-        //   "stroke-width": 0.25,
-        //   fill: "none",
-        // });
-        // const line2 = createSvgElement("line", {
-        //   x1: c.col,
-        //   y1: c.row,
-        //   x2: prevX1,
-        //   y2: prevY1,
-        //   stroke: "rgb(0 0 0 / 0.4)",
-        //   "stroke-width": 0.25,
-        //   fill: "none",
-        // });
-        // const from = createSvgElement("circle", {
-        //   cx: c.col,
-        //   cy: c.row,
-        //   r: MATRIX_STEP * (1 / 2),
-        //   stroke: "rgb(0 0 0 / 0.6)",
-        //   fill: "rgb(255 255 255 / 0.6)",
-        //   "stroke-width": 0.25,
-        // });
-        // const to1 = createSvgElement("circle", {
-        //   cx: x2,
-        //   cy: y2,
-        //   r: MATRIX_STEP * (1 / 2),
-        //   stroke: "none",
-        //   fill: "rgb(0 255 0 / 0.6)",
-        // });
-        // const to2 = createSvgElement("circle", {
-        //   cx: prevX1,
-        //   cy: prevY1,
-        //   r: MATRIX_STEP * (1 / 2),
-        //   stroke: "none",
-        //   fill: "rgb(0 0 255 / 0.6)",
-        // });
-
-        // group.append(line1, line2, from, to1, to2);
-      }
-
-      return (
-        `${a} C ` +
-        `${x1.toFixed(2)} ${y1.toFixed(2)} ` +
-        `${x2.toFixed(2)} ${y2.toFixed(2)} ` +
-        `${x.toFixed(2)} ${y.toFixed(2)}`
-      );
-    }, "");
+  for (const line of lines) {
     const path = createSvgElement("path", {
       "stroke-width": 0.4,
       stroke: "rgb(0 0 0 / 0.4)",
       fill: "none",
-      d,
+      d: line,
     });
 
     fragment.append(path);
@@ -421,7 +312,7 @@ async function render(payload) {
   elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
   await delay();
 
-  renderLines(payload.curves, elements.linesGroup);
+  renderLines(payload.lines, elements.linesGroup);
   elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
 }
 
@@ -437,114 +328,6 @@ function createSvgElement(tag, properties = {}) {
   );
 
   return element;
-}
-
-function areCellsNeighbours(a, b) {
-  if (a.row - MATRIX_STEP === b.row && a.col - MATRIX_STEP === b.col) {
-    return true;
-  }
-
-  if (a.row - MATRIX_STEP === b.row && a.col === b.col) {
-    return true;
-  }
-
-  if (a.row - MATRIX_STEP === b.row && a.col + MATRIX_STEP === b.col) {
-    return true;
-  }
-
-  if (a.row === b.row && a.col - MATRIX_STEP === b.col) {
-    return true;
-  }
-
-  // if (a.row === b.row && a.col === b.col) {
-  //   return true;
-  // }
-
-  if (a.row === b.row && a.col + MATRIX_STEP === b.col) {
-    return true;
-  }
-
-  if (a.row + MATRIX_STEP === b.row && a.col - MATRIX_STEP === b.col) {
-    return true;
-  }
-
-  if (a.row + MATRIX_STEP === b.row && a.col === b.col) {
-    return true;
-  }
-
-  if (a.row + MATRIX_STEP === b.row && a.col + MATRIX_STEP === b.col) {
-    return true;
-  }
-
-  return false;
-}
-
-function areCellsEqual(a, b) {
-  const areEqual = a.row === b.row && a.col === b.col;
-
-  return areEqual;
-}
-
-function getMatrixNeighbours(matrix, row, col) {
-  const neighbours = [];
-
-  if (matrix?.[row - 1]?.[col - 1]?.active) {
-    neighbours.push({
-      row: row - 1,
-      col: col - 1,
-    });
-  }
-
-  if (matrix?.[row - 1]?.[col]?.active) {
-    neighbours.push({
-      row: row - 1,
-      col: col,
-    });
-  }
-
-  if (matrix?.[row - 1]?.[col + 1]?.active) {
-    neighbours.push({
-      row: row - 1,
-      col: col + 1,
-    });
-  }
-
-  if (matrix?.[row]?.[col + 1]?.active) {
-    neighbours.push({
-      row: row,
-      col: col + 1,
-    });
-  }
-
-  if (matrix?.[row + 1]?.[col + 1]?.active) {
-    neighbours.push({
-      row: row + 1,
-      col: col + 1,
-    });
-  }
-
-  if (matrix?.[row + 1]?.[col]?.active) {
-    neighbours.push({
-      row: row + 1,
-      col: col,
-    });
-  }
-
-  if (matrix?.[row + 1]?.[col - 1]?.active) {
-    neighbours.push({
-      row: row + 1,
-      col: col - 1,
-    });
-  }
-
-  if (matrix?.[row]?.[col - 1]?.active) {
-    neighbours.push({
-      row: row,
-      col: col - 1,
-    });
-  }
-
-  return neighbours;
 }
 
 function delay(ms = 200) {
