@@ -12,7 +12,6 @@ const CELL_DISTANCE = 8;
 
 // ========== elements
 
-// prettier-ignore
 const elements = {
   root: document.querySelector("#root"),
 
@@ -23,8 +22,12 @@ const elements = {
   svg: document.querySelector("#svg"),
 
   "noise-matrix-group": document.querySelector("#noise-matrix-group"),
-  "horizontal-changes-matrix-group": document.querySelector("#horizontal-changes-matrix-group"),
-  "vertical-changes-matrix-group": document.querySelector("#vertical-changes-matrix-group"),
+  "horizontal-changes-matrix-group": document.querySelector(
+    "#horizontal-changes-matrix-group",
+  ),
+  "vertical-changes-matrix-group": document.querySelector(
+    "#vertical-changes-matrix-group",
+  ),
   "lines-matrix-group": document.querySelector("#lines-matrix-group"),
   "individual-lines-group": document.querySelector("#individual-lines-group"),
   "inflections-group": document.querySelector("#inflections-group"),
@@ -32,10 +35,16 @@ const elements = {
   "lines-group": document.querySelector("#lines-group"),
 
   "noise-matrix-progress": document.querySelector("#noise-matrix-progress"),
-  "horizontal-changes-matrix-progress": document.querySelector("#horizontal-changes-matrix-progress"),
-  "vertical-changes-matrix-progress": document.querySelector("#vertical-changes-matrix-progress"),
+  "horizontal-changes-matrix-progress": document.querySelector(
+    "#horizontal-changes-matrix-progress",
+  ),
+  "vertical-changes-matrix-progress": document.querySelector(
+    "#vertical-changes-matrix-progress",
+  ),
   "lines-matrix-progress": document.querySelector("#lines-matrix-progress"),
-  "individual-lines-progress": document.querySelector("#individual-lines-progress"),
+  "individual-lines-progress": document.querySelector(
+    "#individual-lines-progress",
+  ),
   "inflections-progress": document.querySelector("#inflections-progress"),
   "curves-progress": document.querySelector("#curves-progress"),
   "lines-progress": document.querySelector("#lines-progress"),
@@ -48,101 +57,56 @@ elements.svg.setAttribute("viewBox", `0 0 ${WIDTH} ${HEIGHT}`);
 
 // ========== rendering
 
-function renderNoiseMatrix(matrix, group) {
+function renderMatrixCircles(matrix, group, { filter, fill }) {
   const fragment = new DocumentFragment();
 
   for (let row = 0; row < matrix.length; row++) {
     for (let col = 0; col < matrix[0].length; col++) {
       const cell = matrix[row][col];
-      const circle = createSvgElement("circle", {
-        "data-coordinates": `${row}-${col}`,
-        cx: cell.col,
-        cy: cell.row,
-        r: MATRIX_STEP * (1 / 2),
-        stroke: "none",
-        fill: `rgb(0 0 0 / ${cell.level})`,
-      });
 
-      fragment.append(circle);
+      if (filter && !filter(cell)) continue;
+
+      fragment.append(
+        createSvgElement("circle", {
+          "data-coordinates": `${row}-${col}`,
+          cx: cell.col,
+          cy: cell.row,
+          r: MATRIX_STEP / 2,
+          stroke: "none",
+          fill: typeof fill === "function" ? fill(cell) : fill,
+        }),
+      );
     }
   }
 
   group.append(fragment);
+}
+
+function renderNoiseMatrix(matrix, group) {
+  renderMatrixCircles(matrix, group, {
+    fill: (cell) => `rgb(0 0 0 / ${cell.level})`,
+  });
 }
 
 function renderHorizontalChangesMatrix(matrix, group) {
-  const fragment = new DocumentFragment();
-
-  for (let row = 0; row < matrix.length; row++) {
-    for (let col = 0; col < matrix[0].length; col++) {
-      const cell = matrix[row][col];
-
-      if (!cell.change) continue;
-
-      const circle = createSvgElement("circle", {
-        "data-coordinates": `${row}-${col}`,
-        cx: cell.col,
-        cy: cell.row,
-        r: MATRIX_STEP * (1 / 2),
-        stroke: "none",
-        fill: `rgb(255 0 0 / 1)`,
-      });
-
-      fragment.append(circle);
-    }
-  }
-
-  group.append(fragment);
+  renderMatrixCircles(matrix, group, {
+    filter: (cell) => cell.change,
+    fill: "rgb(255 0 0 / 1)",
+  });
 }
 
 function renderVerticalChangesMatrix(matrix, group) {
-  const fragment = new DocumentFragment();
-
-  for (let row = 0; row < matrix.length; row++) {
-    for (let col = 0; col < matrix[0].length; col++) {
-      const cell = matrix[row][col];
-
-      if (!cell.change) continue;
-
-      const circle = createSvgElement("circle", {
-        "data-coordinates": `${row}-${col}`,
-        cx: cell.col,
-        cy: cell.row,
-        r: MATRIX_STEP * (1 / 2),
-        stroke: "none",
-        fill: `rgb(0 255 0 / 1)`,
-      });
-
-      fragment.append(circle);
-    }
-  }
-
-  group.append(fragment);
+  renderMatrixCircles(matrix, group, {
+    filter: (cell) => cell.change,
+    fill: "rgb(0 255 0 / 1)",
+  });
 }
 
 function renderLinesMatrix(matrix, group) {
-  const fragment = new DocumentFragment();
-
-  for (let row = 0; row < matrix.length; row++) {
-    for (let col = 0; col < matrix[0].length; col++) {
-      const cell = matrix[row][col];
-
-      if (!cell.active) continue;
-
-      const circle = createSvgElement("circle", {
-        "data-coordinates": `${row}-${col}`,
-        cx: cell.col,
-        cy: cell.row,
-        r: MATRIX_STEP * (1 / 2),
-        stroke: "none",
-        fill: `rgb(0 0 255 / 1)`,
-      });
-
-      fragment.append(circle);
-    }
-  }
-
-  group.append(fragment);
+  renderMatrixCircles(matrix, group, {
+    filter: (cell) => cell.active,
+    fill: "rgb(0 0 255 / 1)",
+  });
 }
 
 function renderIndividualLines(lines, group) {
@@ -225,41 +189,35 @@ function renderLines(lines, group) {
   group.append(fragment);
 }
 
-// prettier-ignore
 async function render(payload) {
-  let currentStep = 0;
-  const totalSteps = 8;
+  const steps = [
+    [renderNoiseMatrix, payload.noiseMatrix, "noise-matrix-group"],
+    [
+      renderHorizontalChangesMatrix,
+      payload.horizontalChangesMatrix,
+      "horizontal-changes-matrix-group",
+    ],
+    [
+      renderVerticalChangesMatrix,
+      payload.verticalChangesMatrix,
+      "vertical-changes-matrix-group",
+    ],
+    [renderLinesMatrix, payload.linesMatrix, "lines-matrix-group"],
+    [renderIndividualLines, payload.individualLines, "individual-lines-group"],
+    [renderInflections, payload.inflections, "inflections-group"],
+    [renderCurves, payload.curves, "curves-group"],
+    [renderLines, payload.lines, "lines-group"],
+  ];
 
-  renderNoiseMatrix(payload.noiseMatrix, elements["noise-matrix-group"]);
-  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
-  await delay();
+  for (let i = 0; i < steps.length; i++) {
+    const [fn, data, groupKey] = steps[i];
 
-  renderHorizontalChangesMatrix(payload.horizontalChangesMatrix, elements["horizontal-changes-matrix-group"]);
-  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
-  await delay();
+    fn(data, elements[groupKey]);
 
-  renderVerticalChangesMatrix(payload.verticalChangesMatrix, elements["vertical-changes-matrix-group"]);
-  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
-  await delay();
+    elements["drawing-progress"].value = ((i + 1) / steps.length) * 100;
 
-  renderLinesMatrix(payload.linesMatrix, elements["lines-matrix-group"]);
-  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
-  await delay();
-
-  renderIndividualLines(payload.individualLines, elements["individual-lines-group"]);
-  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
-  await delay();
-
-  renderInflections(payload.inflections, elements["inflections-group"]);
-  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
-  await delay();
-
-  renderCurves(payload.curves, elements["curves-group"]);
-  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
-  await delay();
-
-  renderLines(payload.lines, elements["lines-group"]);
-  elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
+    await delay();
+  }
 }
 
 // ========== helpers
@@ -290,8 +248,7 @@ function handleCheckboxChange(event) {
   const group = elements[event.target.dataset.groupId];
 
   if (!group) return;
-  if (!event.target.checked) group.classList.add("hidden");
-  if (event.target.checked) group.classList.remove("hidden");
+  group.classList.toggle("hidden", !event.target.checked);
 }
 
 elements.checkboxes.forEach((c) => {

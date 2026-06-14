@@ -48,20 +48,6 @@ addEventListener("message", (event) => {
       prng = new Alea(SEED);
       noise2D = SimplexNoise.createNoise2D(prng);
 
-      postMessage({
-        type: "setup",
-        payload: {
-          message: "setup done",
-          DEBUG,
-          SEED,
-          WIDTH,
-          HEIGHT,
-          MATRIX_STEP,
-          NOISE_STEP,
-          CELL_DISTANCE,
-        },
-      });
-
       break;
     }
 
@@ -69,7 +55,11 @@ addEventListener("message", (event) => {
       const noiseMatrix = getNoiseMatrix();
       const horizontalChangesMatrix = getHorizontalChangesMatrix(noiseMatrix);
       const verticalChangesMatrix = getVerticalChangesMatrix(noiseMatrix);
-      const linesMatrix = getLinesMatrix(noiseMatrix);
+      const linesMatrix = getLinesMatrix(
+        noiseMatrix,
+        horizontalChangesMatrix,
+        verticalChangesMatrix,
+      );
       const individualLines = getIndividualLines(linesMatrix);
       const inflections = getInflections(individualLines);
       const curves = getCurves(inflections);
@@ -220,10 +210,8 @@ function getVerticalChangesMatrix(matrix, sendProgress = true) {
   return changes;
 }
 
-function getLinesMatrix(matrix, sendProgress = true) {
+function getLinesMatrix(matrix, horizontal, vertical, sendProgress = true) {
   const lines = [];
-  const horizontal = getHorizontalChangesMatrix(matrix, false);
-  const vertical = getVerticalChangesMatrix(matrix, false);
 
   // merge horizontal and vertical
   for (let row = 0; row < matrix.length; row++) {
@@ -293,19 +281,20 @@ function getLinesMatrix(matrix, sendProgress = true) {
 }
 
 function getIndividualLines(matrix, sendProgress = true) {
-  const matrixClone = structuredClone(matrix);
+  const visited = new Set();
   const lines = [];
 
   // border lines first
-  for (let row = 0; row < matrixClone.length; row++) {
-    for (let col = 0; col < matrixClone[0].length; col++) {
+  for (let row = 0; row < matrix.length; row++) {
+    for (let col = 0; col < matrix[0].length; col++) {
       const isBorder =
         row === 0 ||
-        row === matrixClone.length - 1 ||
+        row === matrix.length - 1 ||
         col === 0 ||
-        col === matrixClone[0].length - 1;
+        col === matrix[0].length - 1;
 
-      if (!isBorder || !matrixClone[row][col].active) continue;
+      if (!isBorder || !matrix[row][col].active || visited.has(`${row},${col}`))
+        continue;
 
       const line = [];
 
@@ -314,13 +303,18 @@ function getIndividualLines(matrix, sendProgress = true) {
 
       while (true) {
         line.push({
-          row: matrixClone[cellRow][cellCol].row,
-          col: matrixClone[cellRow][cellCol].col,
+          row: matrix[cellRow][cellCol].row,
+          col: matrix[cellRow][cellCol].col,
         });
 
-        matrixClone[cellRow][cellCol].active = false;
+        visited.add(`${cellRow},${cellCol}`);
 
-        const neighbours = getMatrixNeighbours(matrixClone, cellRow, cellCol);
+        const neighbours = getMatrixNeighbours(
+          matrix,
+          cellRow,
+          cellCol,
+          visited,
+        );
 
         if (neighbours.length <= 0) break;
 
@@ -336,16 +330,16 @@ function getIndividualLines(matrix, sendProgress = true) {
         type: "progress",
         payload: {
           progress: "individual-lines-progress",
-          value: 0 + (row / (matrixClone.length - 1)) * 50,
+          value: 0 + (row / (matrix.length - 1)) * 50,
         },
       });
     }
   }
 
   // other lines second
-  for (let row = 0; row < matrixClone.length; row++) {
-    for (let col = 0; col < matrixClone[0].length; col++) {
-      if (!matrixClone[row][col].active) continue;
+  for (let row = 0; row < matrix.length; row++) {
+    for (let col = 0; col < matrix[0].length; col++) {
+      if (!matrix[row][col].active || visited.has(`${row},${col}`)) continue;
 
       let cellRow = row;
       let cellCol = col;
@@ -354,13 +348,18 @@ function getIndividualLines(matrix, sendProgress = true) {
 
       while (true) {
         line.push({
-          row: matrixClone[cellRow][cellCol].row,
-          col: matrixClone[cellRow][cellCol].col,
+          row: matrix[cellRow][cellCol].row,
+          col: matrix[cellRow][cellCol].col,
         });
 
-        matrixClone[cellRow][cellCol].active = false;
+        visited.add(`${cellRow},${cellCol}`);
 
-        const neighbours = getMatrixNeighbours(matrixClone, cellRow, cellCol);
+        const neighbours = getMatrixNeighbours(
+          matrix,
+          cellRow,
+          cellCol,
+          visited,
+        );
 
         if (neighbours.length <= 0) break;
 
@@ -376,7 +375,7 @@ function getIndividualLines(matrix, sendProgress = true) {
         type: "progress",
         payload: {
           progress: "individual-lines-progress",
-          value: 50 + (row / (matrixClone.length - 1)) * 50,
+          value: 50 + (row / (matrix.length - 1)) * 50,
         },
       });
     }
@@ -390,7 +389,7 @@ function getInflections(lines, sendProgress = true) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const inflection = line.reduce((a, c, i, o) => {
+    const inflection = line.reduce((a, c, i) => {
       if (i % CELL_DISTANCE === 0) {
         return [...a, c];
       }
@@ -448,7 +447,7 @@ function getCurves(inflections, sendProgress = true) {
 
       const isPrevN = areCellsNeighbours(prev, c);
       const isNextN = next ? areCellsNeighbours(next, c) : false;
-      const hasNeighbours = isNextN || isNextN;
+      const hasNeighbours = isNextN || isPrevN;
 
       if (isPrevN) {
         count += count > 0 ? 1 : 2;
@@ -583,49 +582,6 @@ function getLines(curves, sendProgress = true) {
           Math.cos(angle + Math.PI) * (nextDistance * handleDistance) + c.col;
         prevY1 =
           Math.sin(angle + Math.PI) * (nextDistance * handleDistance) + c.row;
-
-        // TODO: send handle data
-        // const line1 = createSvgElement("line", {
-        //   x1: c.col,
-        //   y1: c.row,
-        //   x2,
-        //   y2,
-        //   stroke: "rgb(0 0 0 / 0.4)",
-        //   "stroke-width": 0.25,
-        //   fill: "none",
-        // });
-        // const line2 = createSvgElement("line", {
-        //   x1: c.col,
-        //   y1: c.row,
-        //   x2: prevX1,
-        //   y2: prevY1,
-        //   stroke: "rgb(0 0 0 / 0.4)",
-        //   "stroke-width": 0.25,
-        //   fill: "none",
-        // });
-        // const from = createSvgElement("circle", {
-        //   cx: c.col,
-        //   cy: c.row,
-        //   r: MATRIX_STEP * (1 / 2),
-        //   stroke: "rgb(0 0 0 / 0.6)",
-        //   fill: "rgb(255 255 255 / 0.6)",
-        //   "stroke-width": 0.25,
-        // });
-        // const to1 = createSvgElement("circle", {
-        //   cx: x2,
-        //   cy: y2,
-        //   r: MATRIX_STEP * (1 / 2),
-        //   stroke: "none",
-        //   fill: "rgb(0 255 0 / 0.6)",
-        // });
-        // const to2 = createSvgElement("circle", {
-        //   cx: prevX1,
-        //   cy: prevY1,
-        //   r: MATRIX_STEP * (1 / 2),
-        //   stroke: "none",
-        //   fill: "rgb(0 0 255 / 0.6)",
-        // });
-        // group.append(line1, line2, from, to1, to2);
       }
 
       return (
@@ -655,43 +611,14 @@ function getLines(curves, sendProgress = true) {
 // ========== helpers
 
 function areCellsNeighbours(a, b) {
-  if (a.row - MATRIX_STEP === b.row && a.col - MATRIX_STEP === b.col) {
-    return true;
-  }
+  const rowDirection = Math.abs(a.row - b.row);
+  const colDirection = Math.abs(a.col - b.col);
 
-  if (a.row - MATRIX_STEP === b.row && a.col === b.col) {
-    return true;
-  }
-
-  if (a.row - MATRIX_STEP === b.row && a.col + MATRIX_STEP === b.col) {
-    return true;
-  }
-
-  if (a.row === b.row && a.col - MATRIX_STEP === b.col) {
-    return true;
-  }
-
-  // if (a.row === b.row && a.col === b.col) {
-  //   return true;
-  // }
-
-  if (a.row === b.row && a.col + MATRIX_STEP === b.col) {
-    return true;
-  }
-
-  if (a.row + MATRIX_STEP === b.row && a.col - MATRIX_STEP === b.col) {
-    return true;
-  }
-
-  if (a.row + MATRIX_STEP === b.row && a.col === b.col) {
-    return true;
-  }
-
-  if (a.row + MATRIX_STEP === b.row && a.col + MATRIX_STEP === b.col) {
-    return true;
-  }
-
-  return false;
+  return (
+    rowDirection <= MATRIX_STEP &&
+    colDirection <= MATRIX_STEP &&
+    (rowDirection !== 0 || colDirection !== 0)
+  );
 }
 
 function areCellsEqual(a, b) {
@@ -700,66 +627,31 @@ function areCellsEqual(a, b) {
   return areEqual;
 }
 
-function getMatrixNeighbours(matrix, row, col) {
-  const neighbours = [];
+function getMatrixNeighbours(matrix, row, col, visited) {
+  const directions = [
+    [-1, -1],
+    [-1, 0],
+    [-1, 1],
+    [0, 1],
+    [1, 1],
+    [1, 0],
+    [1, -1],
+    [0, -1],
+  ];
 
-  if (matrix?.[row - 1]?.[col - 1]?.active) {
-    neighbours.push({
-      row: row - 1,
-      col: col - 1,
+  return directions
+    .map(([rowDirection, colDirection]) => {
+      return {
+        row: row + rowDirection,
+        col: col + colDirection,
+      };
+    })
+    .filter((cell) => {
+      return (
+        matrix?.[cell.row]?.[cell.col]?.active &&
+        !visited?.has(`${cell.row},${cell.col}`)
+      );
     });
-  }
-
-  if (matrix?.[row - 1]?.[col]?.active) {
-    neighbours.push({
-      row: row - 1,
-      col: col,
-    });
-  }
-
-  if (matrix?.[row - 1]?.[col + 1]?.active) {
-    neighbours.push({
-      row: row - 1,
-      col: col + 1,
-    });
-  }
-
-  if (matrix?.[row]?.[col + 1]?.active) {
-    neighbours.push({
-      row: row,
-      col: col + 1,
-    });
-  }
-
-  if (matrix?.[row + 1]?.[col + 1]?.active) {
-    neighbours.push({
-      row: row + 1,
-      col: col + 1,
-    });
-  }
-
-  if (matrix?.[row + 1]?.[col]?.active) {
-    neighbours.push({
-      row: row + 1,
-      col: col,
-    });
-  }
-
-  if (matrix?.[row + 1]?.[col - 1]?.active) {
-    neighbours.push({
-      row: row + 1,
-      col: col - 1,
-    });
-  }
-
-  if (matrix?.[row]?.[col - 1]?.active) {
-    neighbours.push({
-      row: row,
-      col: col - 1,
-    });
-  }
-
-  return neighbours;
 }
 
 function logger(...args) {
