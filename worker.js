@@ -1,6 +1,8 @@
 import * as SimplexNoise from "https://cdn.jsdelivr.net/npm/simplex-noise@4.0.3/+esm";
 import Alea from "https://cdn.jsdelivr.net/npm/alea@1.0.1/+esm";
 
+// ========== constants
+
 let DEBUG;
 let SEED;
 let WIDTH;
@@ -9,8 +11,12 @@ let MATRIX_STEP;
 let NOISE_STEP;
 let CELL_DISTANCE;
 
+// ========== objects
+
 let prng;
 let noise2D;
+
+// ========== events
 
 addEventListener("message", (event) => {
   logger("from main", event.data);
@@ -85,8 +91,16 @@ addEventListener("message", (event) => {
 
       break;
     }
+
+    default: {
+      console.error("invalid type");
+
+      break;
+    }
   }
 });
+
+// ========== processing
 
 function getNoiseMatrix(sendProgress = true) {
   const rowsTotal = HEIGHT * MATRIX_STEP;

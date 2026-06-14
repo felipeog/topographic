@@ -1,15 +1,4 @@
-const worker = new Worker("worker.js", { type: "module" });
-
-// =============================================================================
-// imports
-// =============================================================================
-
-import * as SimplexNoise from "https://cdn.jsdelivr.net/npm/simplex-noise@4.0.3/+esm";
-import Alea from "https://cdn.jsdelivr.net/npm/alea@1.0.1/+esm";
-
-// =============================================================================
-// constants
-// =============================================================================
+// ========== constants
 
 const DEBUG = false;
 const SEED = "topographic-000";
@@ -21,34 +10,7 @@ const MATRIX_STEP = 1;
 const NOISE_STEP = 0.01;
 const CELL_DISTANCE = 8;
 
-worker.postMessage({
-  type: "setup",
-  payload: {
-    DEBUG,
-    SEED,
-    WIDTH,
-    HEIGHT,
-    MATRIX_STEP,
-    NOISE_STEP,
-    CELL_DISTANCE,
-  },
-});
-
-worker.postMessage({
-  type: "start",
-  payload: {},
-});
-
-// =============================================================================
-// objects
-// =============================================================================
-
-const prng = new Alea(SEED);
-const noise2D = SimplexNoise.createNoise2D(prng);
-
-// =============================================================================
-// elements
-// =============================================================================
+// ========== elements
 
 const elements = {
   root: document.querySelector("#root"),
@@ -93,9 +55,7 @@ elements.svg.setAttribute("width", `${WIDTH}mm`);
 elements.svg.setAttribute("height", `${HEIGHT}mm`);
 elements.svg.setAttribute("viewBox", `0 0 ${WIDTH} ${HEIGHT}`);
 
-// =============================================================================
-// render
-// =============================================================================
+// ========== rendering
 
 function renderNoiseMatrix(matrix, group) {
   const fragment = new DocumentFragment();
@@ -316,9 +276,7 @@ async function render(payload) {
   elements["drawing-progress"].value = (++currentStep / totalSteps) * 100;
 }
 
-// =============================================================================
-// helpers
-// =============================================================================
+// ========== helpers
 
 function createSvgElement(tag, properties = {}) {
   const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
@@ -340,9 +298,7 @@ function logger(...args) {
   console.log(...args);
 }
 
-// =============================================================================
-// events
-// =============================================================================
+// ========== events
 
 function handleCheckboxChange(event) {
   const group = document.querySelector(`#${event.target.dataset.groupId}`);
@@ -354,6 +310,28 @@ function handleCheckboxChange(event) {
 
 elements.checkboxes.forEach((c) => {
   c.addEventListener("change", handleCheckboxChange);
+});
+
+// ========== worker
+
+const worker = new Worker("worker.js", { type: "module" });
+
+worker.postMessage({
+  type: "setup",
+  payload: {
+    DEBUG,
+    SEED,
+    WIDTH,
+    HEIGHT,
+    MATRIX_STEP,
+    NOISE_STEP,
+    CELL_DISTANCE,
+  },
+});
+
+worker.postMessage({
+  type: "start",
+  payload: {},
 });
 
 worker.addEventListener("message", (event) => {
@@ -376,11 +354,15 @@ worker.addEventListener("message", (event) => {
 
       break;
     }
-  }
 
-  switch (type) {
     case "done": {
       render(payload);
+
+      break;
+    }
+
+    default: {
+      console.error("invalid type");
 
       break;
     }
